@@ -1,0 +1,400 @@
+{
+  "name": "ChatGPT Automatic Code Review in Github PR——share",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Edit your own prompt ⬇️\n"
+      },
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        720,
+        240
+      ],
+      "typeVersion": 1,
+      "id": "63c90586-83ce-4a23-b54b-835fd4435ac2"
+    },
+    {
+      "parameters": {
+        "content": "## Filter comments and customize your trigger words ⬇️"
+      },
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -540,
+        280
+      ],
+      "typeVersion": 1,
+      "id": "8286b68b-6f48-47a5-9a53-1ad24e991db9"
+    },
+    {
+      "parameters": {
+        "content": "## Replace your github URL and token ⬇️"
+      },
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -280,
+        260
+      ],
+      "typeVersion": 1,
+      "id": "c767ff98-4af4-477f-9298-20e85c10c803"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// 解析 patch 的函数\nfunction parsePatch(patch) {\n    const lines = patch.split('\\n');\n    let lastOldLine = 0;\n    let lastNewLine = 0;\n    let positionLine = 0;\n    const originalLines = [];\n    const newLines = [];\n\n    lines.forEach((line, index) => {\n        const match = line.match(/^@@ -(\\d+),\\d+ \\+(\\d+),\\d+ @@/);\n        if (match) {\n            lastOldLine = parseInt(match[1]);\n            lastNewLine = parseInt(match[2]);\n            positionLine = lastNewLine + 1;\n        } else if (line.startsWith('-')) {\n            originalLines.push(line);\n        } else if (line.startsWith('+')) {\n            newLines.push(line);\n        } else if (!line.startsWith('\\\\ No newline at end of file')) {\n            originalLines.push(line);\n            newLines.push(line);\n        }\n    });\n\n    return {\n        lastOldLine: lastOldLine,\n        lastNewLine: lastNewLine,\n        positionLine: positionLine,\n        originalCode: originalLines.join('\\n'),\n        newCode: newLines.join('\\n')\n    };\n}\n\n// 从输入中提取信息\nconst input = $json[\"patch\"];\nconst parsedData = parsePatch(input);\n\n// 输出\nreturn {\n    originalCode: parsedData.originalCode,\n    newCode: parsedData.newCode\n};\n"
+      },
+      "name": "Code",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        560,
+        240
+      ],
+      "typeVersion": 2,
+      "id": "d19cd954-1c9c-467b-a04d-7611ce117bcf"
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini-2024-07-18",
+        "options": {
+          "baseURL": ""
+        }
+      },
+      "name": "OpenAI Chat Model1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [
+        740,
+        560
+      ],
+      "typeVersion": 1,
+      "id": "321a26c1-baef-4773-a06c-f4f03a7d9956",
+      "credentials": {
+        "openAiApi": {
+          "id": "TX6Vylv1HBEd7elK",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Replace your github URL and token ⬇️"
+      },
+      "name": "Sticky Note4",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1040,
+        240
+      ],
+      "typeVersion": 1,
+      "id": "af1eec0a-1703-4d46-b580-e33ed81fa695"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.body.pull_request.comments }}",
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Need Review",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        -480,
+        460
+      ],
+      "typeVersion": 2,
+      "id": "04e61c6c-173c-440a-a723-677ad80ee4bd"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $json[\"body\"][\"repository\"][\"full_name\"] }}/pulls/{{ $json[\"body\"][\"pull_request\"][\"number\"] }}/files",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "token YOUR_TOKEN"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get Changes",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -220,
+        440
+      ],
+      "typeVersion": 4.1,
+      "id": "fe39b53e-c9fa-407b-9bc2-0e41771d007e"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "changes",
+        "include": "selectedOtherFields",
+        "fieldsToInclude": "patch",
+        "options": {
+          "disableDotNotation": false,
+          "destinationFieldName": "changes",
+          "includeBinary": false
+        }
+      },
+      "name": "Split Out",
+      "type": "n8n-nodes-base.splitOut",
+      "position": [
+        -20,
+        440
+      ],
+      "typeVersion": 1,
+      "id": "f72fef0d-d5a7-4202-9bf9-a501df86bf3c"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "leftValue": "={{ $json.changes }}",
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Skip File Change",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        180,
+        440
+      ],
+      "typeVersion": 2,
+      "id": "44f53c2b-6c7d-43d5-9cac-edd4013eacf6"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// 解析 patch 的函数\nfunction parsePatch(patch) {\n    const lines = patch.split('\\n');\n    let lastOldLine = 0;\n    let lastNewLine = 0;\n    let positionLine = 0;\n    const filteredLines = [];\n\n    lines.forEach((line, index) => {\n        // 查找 @@ -17,6 +17,20 @@ 形式的行，并提取信息\n        const match = line.match(/^@@ -(\\d+),\\d+ \\+(\\d+),\\d+ @@/);\n        if (match) {\n            lastOldLine = parseInt(match[1]);\n            lastNewLine = parseInt(match[2]);\n            positionLine = lastNewLine + 1;\n        }\n        // 过滤掉“No newline at end of file”行\n        if (line.trim() !== '\\\\ No newline at end of file') {\n            filteredLines.push(line);\n        }\n    });\n\n    return {\n        lastOldLine: lastOldLine,\n        lastNewLine: lastNewLine,\n        positionLine: positionLine,\n        patch: filteredLines.join('\\n') // 返回去掉多余行的patch\n    };\n}\n\n// 从输入中提取信息\nconst input = $json[\"patch\"];\nconst changes = $json[\"changes\"];\nconst parsedData = parsePatch(input);\n\n// 输出\nreturn {\n    lastOldLine: parsedData.lastOldLine,\n    lastNewLine: parsedData.lastNewLine,\n    positionLine: changes,  // 确保 positionLine 等于 changes\n    patch: parsedData.patch\n};\n"
+      },
+      "name": "Parse Last Diff Line",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        380,
+        240
+      ],
+      "typeVersion": 2,
+      "id": "99e27619-aa80-4013-9b77-b0b2354dd9df"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{$('Webhook').item.json['body'].repository.full_name}}/pulls/{{ $('Webhook').item.json.body.pull_request.number }}/comments",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "token YOUR_TOKEN"
+            },
+            {
+              "name": "Content-Type",
+              "value": " application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n    \"body\": {{ JSON.stringify($('Basic LLM Chain').item.json[\"text\"]); }},\n     \"commit_id\": {{ JSON.stringify($('Need Review').item.json.body.pull_request.head.sha); }},\n  \"path\": {{ JSON.stringify($('Get Changes').item.json.filename); }},\n  \"position\": {{ $('Parse Last Diff Line').item.json.positionLine }}\n}",
+        "options": {}
+      },
+      "name": "Post Discussions",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1120,
+        420
+      ],
+      "typeVersion": 4.1,
+      "id": "c3ef8931-e563-4abb-9152-68322cfcccef"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "4b8de672-fbc8-41c9-a4b4-a218579206cc",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -700,
+        460
+      ],
+      "webhookId": "4b8de672-fbc8-41c9-a4b4-a218579206cc",
+      "typeVersion": 1.1,
+      "id": "b951d9a5-5d8a-42ba-9b56-9349781ed667"
+    },
+    {
+      "parameters": {
+        "prompt": "=\n\n```Original code\n {{ $json.originalCode }}\n```\nchange to\n```New code\n {{ $json.newCode }}\n```\nPlease review the code changes in this section:",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "type": "AIMessagePromptTemplate",
+              "message": "# Overview:| 您是高级编程专家Bot，负责审查代码更改并提供审查建议。在建议之初，需要明确做出“拒绝”或“接受”代码变更的决定，并以“变更得分:实际得分”的形式对变更进行评分，评分范围为0-100分。然后，以简洁的语言和严厉的语气指出存在的问题。如果您觉得有必要，可以直接提供修改后的内容。你的评审提案必须使用严格的Markdown格式"
+            }
+          ]
+        }
+      },
+      "name": "Basic LLM Chain",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [
+        720,
+        420
+      ],
+      "typeVersion": 1.2,
+      "id": "298aea08-293e-4a0b-a83b-1b57bd01f77a"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Need Review": {
+      "main": [
+        [
+          {
+            "node": "Get Changes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Changes": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Skip File Change",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip File Change": {
+      "main": [
+        [
+          {
+            "node": "Parse Last Diff Line",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Last Diff Line": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Need Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Post Discussions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "e1104e9e-20e4-4e4f-a428-411afb30c31b",
+  "meta": {
+    "templateId": "2167",
+    "templateCredsSetupCompleted": true,
+    "instanceId": "832de6d3be8968d3ca64ae53f3fa0927e99160d9469c0f93dda31b64cdd9adcc"
+  },
+  "id": "YYVeLiVSj4kfXEwY",
+  "tags": [
+    {
+      "createdAt": "2024-08-26T09:29:53.238Z",
+      "updatedAt": "2024-08-26T09:29:53.238Z",
+      "id": "E5rQ2NVYq50vZ6Sv",
+      "name": "share"
+    }
+  ]
+}
